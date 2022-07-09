@@ -1,0 +1,216 @@
+---
+title: "AndreProject"
+author: "Andre"
+date: '2022-07-01'
+output: html_document
+---
+
+```{r Import Library}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(tseries)
+library(forecast)
+library(car)
+library(readxl)
+library(tidyverse)
+library(stats)
+library(Hmisc)
+library(TSA)
+library(lmtest)
+library(MLmetrics)
+library(smooth)
+```
+
+```{r Membaca Data}
+datacurahhujan <- read_excel("C:/Users/user/Google Drive/project/PORTODATA/dataskripsi.xlsx")
+dataTS = ts(datacurahhujan$RR,frequency = 12, start = c(2012,1),end = c(2021,12))
+```
+
+```{r Periksa Kondisi data}
+
+#Periksa Nilai Hilang 
+any(is.na(datacurahhujan))
+
+#Periksa Data Duplikat
+any(duplicated(datacurahhujan))
+
+#Periksa Tipe Data
+str(datacurahhujan)
+```
+
+```{r Analisis Data Eksploratif}
+
+#Split bulan,hari untuk visualisasi dan analisis lanjutan
+datacurahhujan$Tanggal = as.Date(datacurahhujan$Tanggal,"%d-%m-%Y")
+datacurahhujan$hari = format(datacurahhujan$Tanggal,format = "%A")
+datacurahhujan$bulan = format(datacurahhujan$Tanggal,format = "%B")
+datacurahhujan$bulan_numerik = format(datacurahhujan$Tanggal,format = "%m")
+datacurahhujan$tahun = format(datacurahhujan$Tanggal,format = "%Y")
+
+#ubah tipe data bulan dan hari
+datacurahhujan$bulan = factor(datacurahhujan$bulan,levels = c("January","February","March", "April","May","June","July","August","September","October","November","December"))
+datacurahhujan$hari = factor(datacurahhujan$hari,levels = c("Monday","Tuesday","Wednesday", "Thursday","Friday","Saturday","Sunday"))
+
+#data awal
+dataset = datacurahhujan[,c(1,2)]
+
+#data bulanan
+data_aggr <- aggregate(RR ~ bulan_numerik + tahun,
+                        datacurahhujan,
+                        FUN = mean)
+data_aggr$day = 01
+data_aggr$tanggal <- as.Date(with(data_aggr, paste(tahun, bulan_numerik, day,sep="-")), "%Y-%m-%d")
+data_bulanan = data_aggr[,c(5,3)]
+head(data_bulanan)
+```
+
+```{r Visualisasi}
+dataset$Tanggal = format(dataset$Tanggal,format = "%d-%m-%Y")
+dataset = dataset[!duplicated(dataset),]
+
+#PLOT1
+dataTS = data.frame(dataset[,2],row.names = dataset$Tanggal)
+dataTS = ts(dataTS,frequency = 12, start = c(2012,1),end = c(2021,12))
+ts.plot(dataTS,main = "Data Curah Hujan Harian 2012 - 2021",ylab = "rasio curah hujan",xlab = "Tahun")
+
+#PLOT2
+dataTS_bulanan = data.frame(data_bulanan[,2],row.names = data_bulanan$Tanggal)
+dataTS_bulanan = ts(dataTS_bulanan,frequency = 12, start = c(2012,1),end = c(2021,12))
+ts.plot(dataTS_bulanan, main = "Data Curah Hujan Bulanan 2012 - 2021",ylab = "rasio curah hujan",xlab = "Tahun")
+
+#PLOT3
+kes1 = tapply(datacurahhujan$RR,datacurahhujan$bulan,mean)
+plot(kes1,type = "o",main = "rata-rata Curah Hujan 2012 - 2021 dalam bulan",ylab = "rata-rata rasio curah hujan", xlab = "bulan")
+
+#PLOT4
+kes2 = tapply(datacurahhujan$RR,datacurahhujan$hari,mean)
+plot(kes2,type = "o",main = "rata-rata Curah Hujan 2012 - 2021 dalam hari",ylab = "rata-rata rasio curah hujan", xlab = "hari")
+
+#PLOT5
+kes3 = tapply(datacurahhujan$RR,list(datacurahhujan$bulan,datacurahhujan$hari),mean)
+warna = colorRampPalette(c("white","red"))
+heatmap(kes3, Rowv = NA, Colv = NA, col = warna(100))
+```
+
+
+```{r Uji Asumsi Normalitas}
+RR <- as.numeric(unlist(datacurahhujan[,2]))
+
+#Check Normalitas Histogram
+hist(RR,col="green",main='Histogram Curah Hujan')
+
+#Check Normalitas Jarque Bera
+jarque.bera.test(RR)
+
+#H0; Normal | H1; NonNormal
+#jika pval > 0.05 (H0 diterima) & sebaliknya
+#Kesimpulan pval < 0.05 (data tidak normal)
+```
+
+```{r}
+#Check AutoKorelasi
+acf(RR)
+pacf(RR)
+
+#lag ACF & PACF melampaui garis horizontal menunjukan autokorelasi
+#ACF menunjukan korelasi deret waktu dengan kelambatan itu sendiri
+#PACF jumlah korelasi antara deret dan lag tidak dijelaskan lag sebelumnya
+```
+
+```{r}
+#Cek Trend dan Seasonal
+dataTS_dec <- decompose(dataTS)
+plot(dataTS_dec)
+
+#Cek Stasioner
+adf.test(dataTS)
+#H0 ; Stasioner | H1 : NonStasioner
+#Jika pval < 0,05 maka tolak H0 dan sebaliknya
+#Kesimpulan pval < 0,05 maka data tidak stasioner
+```
+
+```{r}
+#Cek Heterokedasitas Goldfeld-Quandt test
+gqtest(dataTS~1)
+#H0 ; Homoskedastisitas | H1 : Heterokedastisitas
+#Jika pval < 0,05 maka tolak H0 dan sebaliknya
+#Kesimpulan pval > 0,05 maka data Homoskedastisitas
+```
+```{r}
+#Data Harian
+dataTS_harian = data.frame(dataset[,2],row.names = dataset$Tanggal)
+harian_train = dataTS_harian[1:2922,1]
+harian_test = dataTS_harian[2923:3653,1]
+
+TS_harian_train = ts(harian_train,frequency = 12, start = c(2012,1),end = c(2019,12))
+TS_harian_test = ts(harian_test,frequency = 12, start = c(2020,1),end = c(2021,12))
+
+#Data Bulanan
+dataTS_bulanan = data.frame(data_bulanan[,2],row.names = data_bulanan$Tanggal)
+bulanan_train = dataTS_bulanan[1:84,1]
+bulanan_test = dataTS_bulanan[85:120,1]
+
+TS_bulanan_train = ts(bulanan_train,frequency = 12, start = c(2012,1),end = c(2019,12))
+TS_bulanan_test = ts(bulanan_test,frequency = 12, start = c(2020,1),end = c(2021,12))
+```
+
+```{r}
+#Pemodelan Triple Eksponensial Data Bulanan
+model.ad<- HoltWinters(TS_bulanan_train, alpha = NULL, beta = NULL, gamma = NULL, seasonal = "additive")
+y_pred = predict(model.ad, length(TS_bulanan_test))
+cat("nilai MAPE additive adalah",MAPE(y_pred,TS_bulanan_test))
+
+model.mp <- HoltWinters(TS_bulanan_train, alpha = NULL, beta = NULL, gamma = NULL, seasonal = "multiplicative")
+y_pred = predict(model.mp, length(TS_bulanan_test))
+cat("\n nilai MAPE multiplicative adalah",MAPE(y_pred,TS_bulanan_test))
+```
+
+```{r Cross Section Parameter}
+alpha <- seq(.01, .9, by = .03)
+beta <- seq(.01, .9, by = .03)
+gamma <- seq(.01, .9, by= .03)
+MAPEadd <- NA
+MAPEmul <- NA
+
+for(i in seq_along(alpha)) {
+  for(i in seq_along(beta)) {
+    for(i in seq_along(gamma)){
+      model <- HoltWinters(TS_bulanan_train, alpha = alpha[i], beta = beta[i], gamma = gamma[i], seasonal = "additive")
+      y_pred <- predict(model, length(TS_bulanan_test))
+      MAPEadd[i] = MAPE(y_pred, TS_bulanan_test)
+    }
+  }
+}
+
+additive <- data_frame(alpha, beta, gamma, MAPEadd)
+
+for(i in seq_along(alpha)) {
+  for(i in seq_along(beta)) {
+    for(i in seq_along(gamma)){
+      model <- HoltWinters(TS_bulanan_train, alpha = alpha[i], beta = beta[i], gamma = gamma[i], seasonal = "multiplicative")
+      y_pred <- predict(model, length(TS_bulanan_test))
+      MAPEmul[i] = MAPE(y_pred, TS_bulanan_test)
+    }
+  }
+}
+
+multiplicative <- data_frame(alpha, beta, gamma, MAPEmul)
+
+#Print Out
+additive
+multiplicative
+```
+
+```{r Peramalan}
+dataTS_bulanan = data.frame(data_bulanan[,2],row.names = data_bulanan$Tanggal)
+TS_bulanan = ts(dataTS_bulanan,frequency = 12, start = c(2012,1),end = c(2021,12))
+
+final_model <- HoltWinters(TS_bulanan, alpha = 0.01, beta = 0.01, gamma = 0.01, seasonal = "multiplicative")
+y_pred = predict(final_model, 36, prediction.interval = TRUE, level=0.95)
+
+
+plot(TS_bulanan, xlim=c(2012,2024))
+lines(final_model$fitted[,1], lty=2, col="blue")
+lines(y_pred[,1], col="red")
+```
