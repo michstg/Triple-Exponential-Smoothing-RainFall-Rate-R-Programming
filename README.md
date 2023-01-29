@@ -1,4 +1,9 @@
-# TripleExponentialSmoothing-CurahHujan-useR
-Data ; curah hujan wilayah padang lawas utara dari tahun 2012-2021 (BPS)
+# Triple Exponential Smoothing with Optimal Parameter Using R
+Dataset = Rainfall rate in South Padang Lawas 
+Times = 2012 until 2021 (Website BPS)
 
-Kesimpulan Mape Terkecil = 0,30 dengan seasonal = 'Multiplicative' | alpha,beta,gamma = 0,1
+* Summary = Smallest Mape 0.30 (with cross looping with 3 parameters)
+* Parameter Seasonal = 'Multiplicative'
+* Parameter alpha = 0.1
+* Parameter beta = 0.1
+* Parameter gamma = 0.1
