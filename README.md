@@ -2,6 +2,7 @@
 Dataset = Rainfall rate in South Padang Lawas 
 Times = 2012 until 2021 (Website BPS)
 
+* Assumption Hypotesis Test
 * Triple Exponential Smoothing with cross looping with 3 parameters)
 * Cross Parameter Seasonal = 'Additive' and 'Multiplicative'
 * Looping Parameter alpha = 0.01 - 0.9
