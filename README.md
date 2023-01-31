@@ -1,5 +1,6 @@
 # Triple Exponential Smoothing with Optimal Parameter Using R
 Dataset = Rainfall rate in South Padang Lawas 
+
 Times = 2012 until 2021 (Website BPS)
 
 * Assumption Hypotesis Test
